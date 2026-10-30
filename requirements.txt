@@ -1,2 +1,2 @@
 pygame-ce
-pygbag
+pygbag==0.9.3

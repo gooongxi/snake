@@ -3,6 +3,7 @@ import sys
 import pathlib
 import random
 import pygame
+from leaderboard import Leaderboard
 
 IN_BROWSER = sys.platform == "emscripten"
 SCORE_KEY = "eddiekong.snake.top_score"
@@ -35,6 +36,7 @@ def save_top_score(score):
 
 async def main():
     pygame.init()
+    leaderboard = Leaderboard()
 
     top_score = load_top_score()
 
@@ -46,6 +48,12 @@ async def main():
     screen = pygame.display.set_mode((WIDTH,HEIGHT))
     next_tick = 0
     answer = 1
+    rank_started = False
+    rank_reported = False
+    rank_difficulty = 1
+    rank_rate = 1
+    rank_eligible = True
+    difficulty_by_rate = {1: 1, 3: 2, 5: 3, 8: 4, 10: 5, 12: 6, 15: 7, 22: 8, 30: 9}
     sp_x = COL//2
     sp_y = ROW//2
     apple = (random.randint(0,COL-1), random.randint(0,ROW-1))
@@ -101,6 +109,10 @@ async def main():
     while running:
         # Yield on EVERY path, including the original continue statements.
         await asyncio.sleep(0)
+        # Report before reading restart keys, exactly once on either game-over path.
+        if game_over and rank_started and not rank_reported:
+            rank_reported = True
+            leaderboard.finish(points, rank_difficulty, time, rank_eligible)
         if pygame.time.get_ticks() < next_tick:
             continue
         for event in pygame.event.get():
@@ -121,6 +133,10 @@ async def main():
                     dy = 0
                 
                 if event.key == pygame.K_r:
+                    rank_started = False
+                    rank_reported = False
+                    rank_eligible = True
+                    time2 = time3 = time4 = time5 = 0
                     game_over = False
                     game_start = False
                     game_pause = False
@@ -169,6 +185,15 @@ async def main():
                     else:
                         game_pause = True
 
+
+        if game_start and not rank_started:
+            rank_started = True
+            rank_rate = answer
+            rank_difficulty = difficulty_by_rate[answer]
+            leaderboard.start(rank_difficulty)
+        elif rank_started and answer != rank_rate:
+            # Original mid-game difficulty controls remain usable, but do not rank.
+            rank_eligible = False
 
         if game_start == False:
             screen.fill('white')
