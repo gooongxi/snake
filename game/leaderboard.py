@@ -12,11 +12,8 @@ class Leaderboard:
         try:
             import platform
             root = pathlib.Path(__file__).resolve().parent
-            config = json.loads((root / "leaderboard_config.json").read_text(encoding="utf-8"))
-            source = (root / "leaderboard.js").read_text(encoding="utf-8")
-            # Keep the Pygbag bridge ASCII-only; decode Unicode in JavaScript.
-            # Passing raw UTF-8 source through window.eval can garble Chinese.
-            platform.window.eval("(0,eval)(" + json.dumps(source, ensure_ascii=True) + ")")
+            config = json.loads((root / "leaderboard_config.json").read_text())
+            platform.window.eval((root / "leaderboard.js").read_text())
             self.window = platform.window
             self.call("setup", config)
         except Exception as exc:

@@ -8,7 +8,7 @@
   const store = (key, value) => { try { localStorage.setItem(key, value); } catch (_) {} };
   function status(text) { message.textContent = text; }
   async function request(data, query = "") {
-    if (!endpoint) throw new Error("尚未连接排行榜，请先配置在线服务。");
+    if (!endpoint) throw new Error("Leaderboard not connected. Please configure the online service.");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
     try {
@@ -18,11 +18,11 @@
         body: data ? JSON.stringify(data) : undefined, credentials: "omit"
       });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "排行榜服务暂不可用");
+      if (!response.ok) throw new Error(body.error || "Leaderboard temporarily unavailable");
       return body;
     } catch (error) {
-      if (error.name === "AbortError") throw new Error("连接超时，请稍后重试。");
-      if (error instanceof TypeError) throw new Error("无法连接排行榜，请检查网络或稍后重试。");
+      if (error.name === "AbortError") throw new Error("Connection timed out. Please try again later.");
+      if (error instanceof TypeError) throw new Error("Cannot connect to the leaderboard. Check your connection or try again later.");
       throw error;
     } finally { clearTimeout(timeout); }
   }
@@ -41,7 +41,7 @@
       }
       if (!data.entries.length) {
         const tr = document.createElement("tr"), td = document.createElement("td");
-        td.colSpan = 3; td.textContent = "这个难度还没有成绩。"; tr.append(td); rows.append(tr);
+        td.colSpan = 3; td.textContent = "No scores for this difficulty yet."; tr.append(td); rows.append(tr);
       }
     } catch (error) { if (version === readVersion) status(error.message); }
   }
@@ -49,17 +49,17 @@
     const item = pending;
     if (!item || sending) return;
     const name = nickname.value.trim();
-    if (!name || Array.from(name).length > 24) { status("请填写 1–24 个字符的昵称。"); panel.open = true; return; }
-    if (!item.eligible) { status("这一局更换过难度，仅保留本地成绩。下一局固定难度即可上榜。"); return; }
-    sending = true; submit.disabled = true; status("正在提交成绩……");
+    if (!name || Array.from(name).length > 24) { status("Enter a nickname with 1-24 characters."); panel.open = true; return; }
+    if (!item.eligible) { status("Difficulty changed during this game. Score saved locally only. Keep one difficulty next game to rank."); return; }
+    sending = true; submit.disabled = true; status("Submitting score...");
     store("snake.global.nickname", name);
     try {
       const session = await item.round.session;
-      if (session.error) throw new Error(session.error + " 本局未建立在线记录，请联网后开始新一局。");
+      if (session.error) throw new Error(session.error + " No online session was created. Connect to the internet and start a new game.");
       const result = await request({action: "finish", player_token: token,
         run_id: session.run_id, nickname: name, score: item.score, duration: item.duration});
       if (pending === item) pending = null;
-      status(result.improved ? "成绩已保存，刷新了该难度的个人最佳！" : "成绩已提交，排行榜保留该难度的个人最佳。");
+      status(result.improved ? "Score saved! New personal best for this difficulty!" : "Score submitted. The leaderboard keeps your best score for each difficulty.");
       if (Number(difficulty.value) === item.difficulty) await refresh();
     } catch (error) { status(error.message); }
     finally {
@@ -79,7 +79,7 @@
       style.textContent = `#snake-global{position:fixed;right:12px;bottom:12px;z-index:9999;width:min(340px,calc(100vw - 24px));box-sizing:border-box;background:#fff;color:#173b2b;border:1px solid #96b8a5;border-radius:12px;padding:12px;font:15px/1.5 system-ui,sans-serif;box-shadow:0 5px 24px #0003;max-height:80vh;overflow:auto}#snake-global summary{cursor:pointer;font-weight:700}#snake-global input,#snake-global select{box-sizing:border-box;width:100%;padding:7px;margin:6px 0;border:1px solid #a8bfb0;border-radius:5px}#snake-global button{padding:7px 12px;margin:6px 6px 6px 0;cursor:pointer}#snake-global table{width:100%;text-align:left;border-collapse:collapse}#snake-global td,#snake-global th{padding:5px;border-bottom:1px solid #eee;overflow-wrap:anywhere}#snake-global p{margin:8px 0}#snake-global small{color:#526b5c}`;
       document.head.append(style);
       panel = document.createElement("details"); panel.id = "snake-global";
-      panel.innerHTML = `<summary>全球排行榜 · 点击展开</summary><label>玩家昵称<input id="sg-name" maxlength="48" placeholder="填写后，游戏结束时自动提交"></label><label>查看难度<select id="sg-difficulty"></select></label><button id="sg-refresh" type="button">刷新榜单</button><table><thead><tr><th>名次</th><th>玩家</th><th>分数</th></tr></thead><tbody id="sg-rows"></tbody></table><button id="sg-submit" type="button" disabled>提交 / 重试本局成绩</button><p id="sg-message" role="status" aria-live="polite"></p><small>每个浏览器独立识别玩家；每个难度保留最高分。同分按先取得成绩排序。游戏中换难度的局不上榜。</small>`;
+      panel.innerHTML = `<summary>Global Leaderboard - Click to expand</summary><label>Nickname<input id="sg-name" maxlength="48" placeholder="Enter to auto-submit when the game ends"></label><label>Difficulty<select id="sg-difficulty"></select></label><button id="sg-refresh" type="button">Refresh</button><table><thead><tr><th>Rank</th><th>Player</th><th>Score</th></tr></thead><tbody id="sg-rows"></tbody></table><button id="sg-submit" type="button" disabled>Submit / Retry Score</button><p id="sg-message" role="status" aria-live="polite"></p><small>Each browser identifies a separate player. Only your best score per difficulty is kept. Ties go to the earlier score. Games with difficulty changes are not ranked.</small>`;
       document.body.append(panel);
       nickname = panel.querySelector("#sg-name"); nickname.value = saved("snake.global.nickname") || "";
       difficulty = panel.querySelector("#sg-difficulty");
@@ -91,7 +91,7 @@
       panel.querySelector("#sg-refresh").onclick = refresh;
       submit.onclick = send; difficulty.onchange = refresh;
       panel.addEventListener("toggle", () => { if (panel.open && endpoint) refresh(); });
-      status(endpoint ? "填写昵称后开始游戏。点击游戏画面，使用 1–9 选择难度。" : "尚未连接全球排行；游戏和本地最高分仍可正常使用。");
+      status(endpoint ? "Enter a nickname, then click the game and press 1-9 to choose a difficulty." : "Global leaderboard not connected. You can still play and save local high scores.");
     },
     startRound(level) {
       if (!panel) return;
@@ -99,15 +99,15 @@
       difficulty.value = String(level);
       current.session = request({action: "start", player_token: token, difficulty: level})
         .catch(error => ({error: error.message}));
-      status("本局难度：" + names[level] + "。结束后提交成绩。");
+      status("Difficulty: " + names[level] + ". Submit your score when the game ends.");
     },
     endRound(score, level, duration, eligible) {
       if (!panel || !round) return;
       pending = {round, score, difficulty: level, duration, eligible};
       submit.disabled = sending || !eligible;
-      if (!eligible) { status("这一局更换过难度，仅保留本地成绩。"); return; }
+      if (!eligible) { status("Difficulty changed during this game. Score saved locally only."); return; }
       if (nickname.value.trim()) { void send(); }
-      else { panel.open = true; status("本局 " + score + " 分。填写昵称后点击提交。"); }
+      else { panel.open = true; status("Score: " + score + ". Enter a nickname and click Submit."); }
     }
   };
 })();
